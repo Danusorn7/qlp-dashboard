@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="th" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QLP Sales Dashboard - Realtime Live Sync</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0b0f19',
+                        darkCard: '#171e31',
+                        darkBorder: '#1e293b',
+                        accentPurple: '#6366f1',
+                        accentTeal: '#0d9488',
+                        accentGreen: '#059669',
+                        accentPink: '#db2777'
+                    },
+                    fontFamily: {
+                        sans: ['Prompt', 'Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for processing files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            font-family: 'Prompt', 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #f1f5f9;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        /* Glassmorphism and Neon highlights */
+        .neon-card-purple { box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15); }
+        .neon-card-teal { box-shadow: 0 4px 20px rgba(13, 148, 136, 0.15); }
+        .neon-card-green { box-shadow: 0 4px 20px rgba(5, 150, 105, 0.15); }
+        .neon-card-pink { box-shadow: 0 4px 20px rgba(219, 39, 119, 0.15); }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        
+        .pulse-slow {
+            animation: pulse-animation 2.5s infinite;
+        }
+        @keyframes pulse-animation {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <!-- TOP NAVIGATION BAR -->
+    <nav class="border-b border-slate-800 bg-[#0f1422]/90 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <!-- Brand logo and Title -->
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-gradient-to-tr from-indigo-500 to-pink-500 rounded-xl shadow-lg">
+                        <i class="fa-solid fa-chart-column text-white text-lg"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg font-bold tracking-wide text-white">QLP Sales Analytics</span>
+                            <span class="text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-semibold">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block mr-1 pulse-slow"></span> Live Sync
+                            </span>
+                        </div>
+                        <p class="text-[10px] text-slate-400">ระบบประมวลผลยอดขายเรียลไทม์จาก Google Sheets</p>
+                    </div>
+                </div>
+                
+                <!-- Live Refresher Status -->
+                <div class="flex items-center gap-4">
+                    <!-- Real-time Status Widget -->
+                    <div class="flex items-center gap-3 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
+                        <!-- Auto Sync Switch -->
+                        <div class="flex items-center gap-2">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="autoSyncToggle" class="sr-only peer" checked onchange="toggleAutoSync()">
+                                <div class="w-8 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                            </label>
+                            <span class="text-[11px] text-slate-300 font-medium">อัปเดตออโต้ (10s)</span>
+                        </div>
+                        <div class="h-4 w-[1px] bg-slate-800"></div>
+                        <!-- Countdown timer circle -->
+                        <div class="relative w-5 h-5 flex items-center justify-center">
+                            <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                <path class="text-slate-800" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                <path id="countdownProgress" class="text-emerald-400 transition-all duration-1000" stroke-dasharray="100, 100" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                            </svg>
+                            <span id="countdownText" class="absolute text-[8px] font-bold text-slate-300">10</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Manual Sync Button -->
+                    <button onclick="syncWithGoogleSheet()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white transition-all shadow-sm flex items-center justify-center" title="บังคับซิงค์ทันที">
+                        <i id="syncSpinIcon" class="fa-solid fa-arrows-rotate"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- TOAST NOTIFICATION CORNER -->
+    <div id="toastArea" class="fixed top-20 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- GOOGLE SHEET CONNECTION SETTINGS (COLLAPSED BY DEFAULT) -->
+        <div class="mb-6 bg-[#0f1422] border border-slate-800 rounded-2xl p-4 shadow-xl">
+            <div class="flex items-center justify-between cursor-pointer" onclick="toggleSettingsPanel()">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
+                        <i class="fa-solid fa-gears text-sm"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-sm font-bold text-white">การเชื่อมต่อ Google Sheets & เครื่องมือจับคู่คอลัมน์</h2>
+                        <p class="text-[10px] text-slate-400">แก้ไขลิงก์ และตั้งค่าคอลัมน์เพื่อแก้ไขปัญหายอดคลาดเคลื่อน</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="syncIndicatorText" class="text-[11px] text-slate-400">ตรวจสอบแหล่งข้อมูล...</span>
+                    <i id="settingsToggleIcon" class="fa-solid fa-chevron-down text-slate-500 transition-transform"></i>
+                </div>
+            </div>
+            
+            <div id="settingsPanel" class="hidden mt-4 pt-4 border-t border-slate-800/80 space-y-4">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <!-- Sheet Link Input -->
+                    <div class="lg:col-span-8 space-y-1">
+                        <label class="block text-[11px] text-slate-400 font-medium">URL สเปรดชีตต้นทาง (สิทธิ์การเข้าถึงแบบสาธารณะ/มีลิงก์)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-emerald-500">
+                                <i class="fa-brands fa-google-drive"></i>
+                            </span>
+                            <input type="text" id="sheetUrlInput" 
+                                value="https://docs.google.com/spreadsheets/d/1shARFRcKkyzKo1kggDGBFFxBXodAyrYlCJMrbetbyb4/edit?gid=74888472#gid=74888472" 
+                                class="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 transition-all">
+                        </div>
+                    </div>
+                    <!-- Action buttons -->
+                    <div class="lg:col-span-4 flex items-end gap-2">
+                        <button onclick="syncWithGoogleSheet()" class="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-xs py-2 px-4 rounded-xl transition-all shadow-md flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-cloud-arrow-down"></i> เชื่อมโยง & ซิงค์ข้อมูลใหม่
+                        </button>
+                        <a id="originalSheetLink" href="https://docs.google.com/spreadsheets/d/1shARFRcKkyzKo1kggDGBFFxBXodAyrYlCJMrbetbyb4/edit?gid=74888472#gid=74888472" target="_blank" class="p-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition-colors" title="เปิดหน้าตารางจริง">
+                            <i class="fa-solid fa-up-right-from-square"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Column mapping dropdowns (Solves mismatch issues) -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800/60">
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1 font-bold">ช่องทางการขาย</label>
+                        <select id="mapColChannel" onchange="applyUserColumnMapping()" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500">
+                            <!-- Filled dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1 font-bold">ยอดขายรวม (บาท)</label>
+                        <select id="mapColSales" onchange="applyUserColumnMapping()" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500">
+                            <!-- Filled dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1 font-bold">จำนวนชิ้น</label>
+                        <select id="mapColQty" onchange="applyUserColumnMapping()" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500">
+                            <!-- Filled dynamically -->
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1 font-bold">วันที่ / เดือน</label>
+                        <select id="mapColDate" onchange="applyUserColumnMapping()" class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-white outline-none focus:ring-1 focus:ring-indigo-500">
+                            <!-- Filled dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <!-- File drop-back for offlines -->
+                <div class="flex items-center justify-between text-xs pt-2 border-t border-slate-800/40">
+                    <span class="text-slate-400">อัปเดตแบบลากไฟล์ออฟไลน์สำรอง:</span>
+                    <label for="fallbackFileInput" class="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer flex items-center gap-1.5 transition-colors">
+                        <i class="fa-regular fa-file-excel text-emerald-500"></i> โหลดจากไฟล์ Excel (.xlsx) ที่นี่
+                    </label>
+                    <input id="fallbackFileInput" type="file" accept=".xlsx, .xls" class="hidden" onchange="processLocalExcel(event)">
+                </div>
+            </div>
+        </div>
+
+        <!-- TITLE & SEARCH FILTER BAR (Direct replication of images layout) -->
+        <div class="bg-darkCard border border-slate-800 rounded-2xl p-6 mb-6 shadow-xl">
+            <h1 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <i class="fa-solid fa-square-poll-vertical text-indigo-400"></i>
+                QLP Sales Dashboard
+            </h1>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <!-- Start date picker -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1.5 font-medium">ตั้งแต่</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <i class="fa-solid fa-calendar"></i>
+                        </span>
+                        <input type="date" id="startDate" onchange="triggerUpdateFilter()" class="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all">
+                    </div>
+                </div>
+                
+                <!-- End date picker -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-1.5 font-medium">ถึง</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                            <i class="fa-solid fa-calendar"></i>
+                        </span>
+                        <input type="date" id="endDate" onchange="triggerUpdateFilter()" class="w-full pl-9 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all">
+                    </div>
+                </div>
+
+                <!-- Channel dropdown and reset action -->
+                <div class="flex gap-2">
+                    <div class="flex-1">
+                        <label class="block text-xs text-slate-400 mb-1.5 font-medium">ช่องทางการจำหน่าย</label>
+                        <select id="channelSelect" onchange="triggerUpdateFilter()" class="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white outline-none cursor-pointer focus:ring-1 focus:ring-indigo-500">
+                            <option value="all">ทุกช่องทาง</option>
+                        </select>
+                    </div>
+                    <button onclick="resetFilters()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-semibold text-xs rounded-xl transition-all border border-slate-700 flex items-center justify-center gap-1.5 shadow-md">
+                        <i class="fa-solid fa-rotate-left"></i> รีเซต
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- FOUR MAIN KPI CARDS -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <!-- Total Sales Card -->
+            <div class="bg-darkCard border border-slate-800 rounded-2xl p-5 relative overflow-hidden transition-all hover:translate-y-[-2px] duration-300 neon-card-purple">
+                <div class="absolute right-4 top-4 w-12 h-12 flex items-center justify-center bg-indigo-500/10 text-indigo-400 rounded-full">
+                    <i class="fa-solid fa-wallet text-xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <span class="text-[11px] font-semibold text-slate-400">ยอดขายรวม</span>
+                    <h2 id="kpiTotalSales" class="text-3xl font-extrabold text-white mt-1 mb-2">฿0</h2>
+                    <span id="kpiTotalSalesSub" class="text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-full font-medium">ทุกช่องทาง</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-indigo-500"></div>
+            </div>
+
+            <!-- Transaction volume Card -->
+            <div class="bg-darkCard border border-slate-800 rounded-2xl p-5 relative overflow-hidden transition-all hover:translate-y-[-2px] duration-300 neon-card-teal">
+                <div class="absolute right-4 top-4 w-12 h-12 flex items-center justify-center bg-teal-500/10 text-teal-400 rounded-full">
+                    <i class="fa-solid fa-clipboard-list text-xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <span class="text-[11px] font-semibold text-slate-400">จำนวนรายการ</span>
+                    <h2 id="kpiTotalTx" class="text-3xl font-extrabold text-white mt-1 mb-2 font-mono">0</h2>
+                    <span class="text-[10px] text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded-full font-medium">รายการขาย</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-teal-500"></div>
+            </div>
+
+            <!-- Quantities sold Card -->
+            <div class="bg-darkCard border border-slate-800 rounded-2xl p-5 relative overflow-hidden transition-all hover:translate-y-[-2px] duration-300 neon-card-green">
+                <div class="absolute right-4 top-4 w-12 h-12 flex items-center justify-center bg-emerald-500/10 text-emerald-400 rounded-full">
+                    <i class="fa-solid fa-box-open text-xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <span class="text-[11px] font-semibold text-slate-400">จำนวนชิ้น</span>
+                    <h2 id="kpiTotalUnits" class="text-3xl font-extrabold text-white mt-1 mb-2 font-mono">0</h2>
+                    <span class="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-medium">สินค้าทั้งหมด</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-emerald-500"></div>
+            </div>
+
+            <!-- Total Channels Card -->
+            <div class="bg-darkCard border border-slate-800 rounded-2xl p-5 relative overflow-hidden transition-all hover:translate-y-[-2px] duration-300 neon-card-pink">
+                <div class="absolute right-4 top-4 w-12 h-12 flex items-center justify-center bg-pink-500/10 text-pink-400 rounded-full">
+                    <i class="fa-solid fa-globe text-xl"></i>
+                </div>
+                <div class="relative z-10">
+                    <span class="text-[11px] font-semibold text-slate-400">จำนวนช่องทาง</span>
+                    <h2 id="kpiTotalChannels" class="text-3xl font-extrabold text-white mt-1 mb-2 font-mono">0</h2>
+                    <span class="text-[10px] text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded-full font-medium">ช่องทางขาย</span>
+                </div>
+                <div class="absolute bottom-0 left-0 right-0 h-[3px] bg-pink-500"></div>
+            </div>
+        </div>
+
+        <!-- CHARTS SECTION: BAR AND DONUT -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Bar Chart Component -->
+            <div class="bg-darkCard border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-300 mb-4 flex items-center gap-2">
+                        <span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
+                        ยอดขายตามช่องทาง
+                    </h3>
+                    <div class="relative w-full h-[320px] flex items-center justify-center">
+                        <canvas id="mainBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Donut Chart Component -->
+            <div class="bg-darkCard border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-300 mb-4 flex items-center gap-2">
+                        <span class="w-1.5 h-4 bg-pink-500 rounded-full"></span>
+                        สัดส่วนยอดขาย
+                    </h3>
+                    <div class="relative w-full h-[320px] flex items-center justify-center">
+                        <canvas id="mainDonutChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LINE CHART: TREND LINE -->
+        <div class="bg-darkCard border border-slate-800 p-5 rounded-2xl shadow-xl mb-6">
+            <h3 class="text-xs font-bold text-slate-300 mb-4 flex items-center gap-2">
+                <span class="w-1.5 h-4 bg-indigo-400 rounded-full"></span>
+                ยอดขายรายเดือน (top 5 ช่องทาง)
+            </h3>
+            <div class="relative w-full h-[320px]">
+                <canvas id="trendLineChart"></canvas>
+            </div>
+        </div>
+
+        <!-- BREAKDOWN TABLE & TOP 5 SIDEBAR -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Left Side: Table Breakdown -->
+            <div class="lg:col-span-8 bg-darkCard border border-slate-800 rounded-2xl shadow-xl overflow-hidden flex flex-col justify-between">
+                <div>
+                    <div class="p-5 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="text-xs font-bold text-slate-300 flex items-center gap-2">
+                            <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
+                            สรุปยอดขายตามช่องทาง
+                        </h3>
+                        <button onclick="downloadCSVReport()" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-1.5 rounded-lg border border-slate-700 transition-colors flex items-center gap-1">
+                            <i class="fa-solid fa-file-csv text-emerald-400"></i> โหลดตาราง CSV
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="bg-slate-950/60 text-slate-400 font-semibold border-b border-slate-800">
+                                    <th class="py-3 px-5">ช่องทาง</th>
+                                    <th class="py-3 px-5 text-right">ยอดรวม (฿)</th>
+                                    <th class="py-3 px-5 text-right">ชิ้น</th>
+                                    <th class="py-3 px-5 w-48 text-left">สัดส่วน</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detailedTableBody" class="divide-y divide-slate-800/60 text-slate-300">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="p-4 bg-slate-950/60 border-t border-slate-800 flex items-center justify-between text-[10px] text-slate-500">
+                    <span id="tableRecordCount">พบทั้งหมด 0 รายการ</span>
+                    <span class="flex items-center gap-1 text-emerald-500 font-medium">
+                        <i class="fa-solid fa-circle-check"></i> ดึงและประมวลผลข้อมูลสำเร็จ
+                    </span>
+                </div>
+            </div>
+
+            <!-- Right Side: TOP 5 SIDEBAR -->
+            <div class="lg:col-span-4 bg-darkCard border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+                <div>
+                    <h3 class="text-xs font-bold text-slate-300 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-trophy text-amber-400"></i>
+                        top 5 ช่องทาง
+                    </h3>
+                    
+                    <div id="top5Container" class="space-y-3.5">
+                        <!-- Filled dynamically -->
+                    </div>
+                </div>
+                
+                <div class="text-[10px] text-slate-500 pt-4 border-t border-slate-800/60 mt-4 text-center">
+                    อันดับคำนวณจากยอดจำหน่ายรวม
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="mt-12 text-center text-[11px] text-slate-600">
+        <p>QLP Premium Realtime Sales Dashboard © 2026. Powered by Google Sheets live connection.</p>
+        <p class="text-indigo-500/60 mt-1">อัปเดตข้อมูลอัตโนมัติ ราบรื่น แม่นยำ และปลอดภัยสูงสุด</p>
+    </footer>
+
+    <script>
+        // Preset Colors Matching the user screenshots beautifully
+        const sliceColors = [
+            '#3b82f6', // สวัสดิการพนักงาน (Royal Blue)
+            '#10b981', // ลูกค้า U2 (Teal)
+            '#f97316', // Shopee (Orange)
+            '#ec4899', // ออกบูธ (Pink)
+            '#eab308', // U2 (Yellow)
+            '#6366f1', // .Affiliate (Indigo)
+            '#84cc16', // Line OA (Green)
+            '#ef4444', // เพื่อนพี่หนุ่ม (Red)
+            '#a855f7', // เพื่อนพี่หน่อย (Purple)
+            '#14b8a6', // Tiktok (Cyan)
+            '#f43f5e', // น้องสาวพี่ยุ้ย (Rose)
+            '#06b6d4', // ศูนย์การแพทย์กันยา
+            '#d946ef', // หมอโรงพยาบาลภูมิพล
+            '#f59e0b', // อื่นๆ
+            '#64748b', // โรงพยาบาลภูมิพล
+            '#db2777'  // Finver
+        ];
+
+        // Backup static data mapped exactly from screenshots if sheet fetch fails
+        const mockFallbackData = [
+            ...generateSyntheticTx("สวัสดิการพนักงาน", 51932, 71, 162, "2026-01-01", "2026-05-31"),
+            ...generateSyntheticTx("ลูกค้า U2", 7480, 2, 8, "2026-02-15", "2026-02-20"),
+            ...generateSyntheticTx("Shopee", 7369, 9, 15, "2026-01-05", "2026-04-10"),
+            ...generateSyntheticTx("ออกบูธ", 6988, 10, 23, "2026-02-10", "2026-05-25"),
+            ...generateSyntheticTx("U2", 6545, 1, 7, "2026-05-12", "2026-05-12"),
+            ...generateSyntheticTx(".Affiliate", 4702, 2, 129, "2026-03-05", "2026-03-12"),
+            ...generateSyntheticTx("Line OA", 3890, 3, 5, "2026-02-01", "2026-04-30"),
+            ...generateSyntheticTx("เพื่อนพี่หนุ่ม", 1653, 2, 3, "2026-03-15", "2026-04-01"),
+            ...generateSyntheticTx("เพื่อนพี่หน่อย", 1636, 3, 8, "2026-01-10", "2026-05-20"),
+            ...generateSyntheticTx("Tiktok", 1245, 5, 5, "2026-03-01", "2026-05-15"),
+            ...generateSyntheticTx("น้องสาวพี่ยุ้ย", 1205, 2, 7, "2026-04-05", "2026-04-18"),
+            ...generateSyntheticTx("ศูนย์การแพทย์กันยา", 1080, 1, 8, "2026-02-28", "2026-02-28"),
+            ...generateSyntheticTx("หมอโรงพยาบาลภูมิพล", 960, 1, 2, "2026-01-15", "2026-01-15"),
+            ...generateSyntheticTx("อื่นๆ", 890, 3, 3, "2026-02-20", "2026-05-01"),
+            ...generateSyntheticTx("โรงพยาบาลภูมิพล", 596, 2, 4, "2026-03-10", "2026-04-12"),
+            ...generateSyntheticTx("Finver", 99, 1, 1, "2026-01-20", "2026-01-20")
+        ];
+
+        // Global State variables
+        let rawDataStore = [...mockFallbackData];
+        let originalRows = [];
+        let detectedHeaders = [];
+        let isAutoSyncEnabled = true;
+        let countdownSeconds = 10;
+        let countdownInterval = null;
+        let autoSyncTimer = null;
+
+        // Active charts reference
+        let barChartInstance = null;
+        let donutChartInstance = null;
+        let lineChartInstance = null;
+
+        // Custom columns index mappings (Dynamic matching)
+        let activeMappings = {
+            channel: -1,
+            sales: -1,
+            qty: -1,
+            date: -1
+        };
+
+        function generateSyntheticTx(channel, totalSales, count, totalUnits, start, end) {
+            const temp = [];
+            const dStart = new Date(start);
+            const dEnd = new Date(end);
+            const timespan = dEnd.getTime() - dStart.getTime();
+
+            let salesLeft = totalSales;
+            let unitsLeft = totalUnits;
+
+            // Specific month distributions matching user's monthly trends
+            const patternMonthMap = {
+                "สวัสดิการพนักงาน": [0.19, 0.27, 0.17, 0.29, 0.08],
+                "ลูกค้า U2": [0.0, 1.0, 0.0, 0.0, 0.0],
+                "Shopee": [0.32, 0.51, 0.17, 0.0, 0.0],
+                "ออกบูธ": [0.0, 0.10, 0.35, 0.0, 0.55],
+                "U2": [0.0, 0.0, 0.0, 0.0, 1.0]
+            };
+
+            for (let i = 0; i < count; i++) {
+                let actualDate;
+                if (patternMonthMap[channel]) {
+                    const ratio = patternMonthMap[channel];
+                    let rIdx = i % ratio.length;
+                    while (ratio[rIdx] === 0) {
+                        rIdx = (rIdx + 1) % ratio.length;
+                    }
+                    const yr = 2026;
+                    const mn = rIdx; // 0=Jan, 1=Feb, etc.
+                    const dy = 3 + Math.floor(Math.random() * 25);
+                    actualDate = new Date(yr, mn, dy);
+                } else {
+                    actualDate = new Date(dStart.getTime() + (count > 1 ? (timespan * (i / (count - 1))) : 0));
+                }
+
+                let subSales = Math.floor(totalSales / count);
+                if (i === count - 1) subSales = salesLeft;
+                else salesLeft -= subSales;
+
+                let subUnits = Math.floor(totalUnits / count);
+                if (i === count - 1) subUnits = unitsLeft;
+                else unitsLeft -= subUnits;
+
+                if (subUnits <= 0) subUnits = 1;
+
+                temp.push({
+                    id: `${channel}-mock-${i}-${Date.now()}`,
+                    channel: channel,
+                    sales: subSales,
+                    units: subUnits,
+                    date: actualDate.toISOString().split('T')[0]
+                });
+            }
+            return temp;
+        }
+
+        function showNotification(msg, theme = 'info') {
+            const container = document.getElementById('toastArea');
+            const alertBox = document.createElement('div');
+            alertBox.className = `flex items-center gap-3 px-4 py-3 rounded-xl border text-xs font-semibold shadow-2xl transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto`;
+            
+            let bgStyle = '';
+            let statusIcon = '';
+            
+            if (theme === 'success') {
+                bgStyle = 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200';
+                statusIcon = '<i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>';
+            } else if (theme === 'error') {
+                bgStyle = 'bg-rose-950/95 border-rose-500/40 text-rose-200';
+                statusIcon = '<i class="fa-solid fa-triangle-exclamation text-rose-400 text-lg"></i>';
+            } else {
+                bgStyle = 'bg-slate-900/95 border-indigo-500/40 text-indigo-200';
+                statusIcon = '<i class="fa-solid fa-cloud-arrow-down text-indigo-400 text-lg"></i>';
+            }
+
+            alertBox.innerHTML = `
+                ${statusIcon}
+                <div class="flex-1">${msg}</div>
+                <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+            
+            alertBox.className += ` ${bgStyle}`;
+            container.appendChild(alertBox);
+
+            setTimeout(() => {
+                alertBox.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                alertBox.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => alertBox.remove(), 300);
+            }, 4000);
+        }
+
+        function toggleSettingsPanel() {
+            const panel = document.getElementById('settingsPanel');
+            const icon = document.getElementById('settingsToggleIcon');
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                icon.style.transform = "rotate(180deg)";
+            } else {
+                panel.classList.add('hidden');
+                icon.style.transform = "rotate(0deg)";
+            }
+        }
+
+        function parseUrlDetails(urlStr) {
+            try {
+                const sheetIdMatch = urlStr.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+                const gidMatch = urlStr.match(/[#&?]gid=([0-9]+)/);
+                
+                return {
+                    id: sheetIdMatch ? sheetIdMatch[1] : null,
+                    gid: gidMatch ? gidMatch[1] : null
+                };
+            } catch (err) {
+                return { id: null, gid: null };
+            }
+        }
+
+        async function syncWithGoogleSheet() {
+            const inputUrl = document.getElementById('sheetUrlInput').value.trim();
+            if (!inputUrl) {
+                showNotification("กรุณากรอกลิงก์ Google Sheets ก่อนการเชื่อมต่อ", "error");
+                return;
+            }
+
+            const parsed = parseUrlDetails(inputUrl);
+            if (!parsed.id) {
+                showNotification("ไม่สามารถดึงรหัสสเปรดชีตได้ กรุณาใส่ลิงก์แชร์ของกูเกิลชีตที่ถูกต้อง", "error");
+                return;
+            }
+
+            // Sync spin animation
+            const spin = document.getElementById('syncSpinIcon');
+            spin.classList.add('fa-spin');
+
+            document.getElementById('syncIndicatorText').textContent = "กำลังเชื่อมข้อมูลจาก Google Sheets...";
+
+            // Export parameters with optional GID support
+            let csvFetchUrl = `https://docs.google.com/spreadsheets/d/${parsed.id}/export?format=csv`;
+            if (parsed.gid) {
+                csvFetchUrl += `&gid=${parsed.gid}`;
+            }
+
+            // Also update href link of original target
+            document.getElementById('originalSheetLink').href = inputUrl;
+
+            try {
+                const res = await fetch(csvFetchUrl);
+                if (!res.ok) throw new Error("ไม่สามารถดาวน์โหลดไฟล์ ตรวจสอบสถานะการแชร์ (สาธารณะสำหรับผู้มีลิงก์)");
+
+                const textData = await res.text();
+                processSheetCSV(textData);
+                
+                showNotification("อัปเดตข้อมูลสำเร็จ เรียลไทม์ 100%", "success");
+            } catch (error) {
+                console.warn(error);
+                showNotification("ล้มเหลวในการเชื่อมโยงชีตสด ใช้ข้อมูลออฟไลน์ตั้งต้นแทน", "error");
+                document.getElementById('syncIndicatorText').textContent = "ใช้ข้อมูลจำลอง (ออฟไลน์)";
+                
+                // Fallback rendering
+                rawDataStore = [...mockFallbackData];
+                refreshDropdownOptions();
+                triggerUpdateFilter();
+            } finally {
+                spin.classList.remove('fa-spin');
+                resetCountdown();
+            }
+        }
+
+        function processSheetCSV(csvText) {
+            const lines = [];
+            let cell = [""];
+            let insideQuotes = false;
+
+            for (let i = 0; i < csvText.length; i++) {
+                const ch = csvText[i];
+                const nextCh = csvText[i + 1];
+
+                if (ch === '"') {
+                    if (insideQuotes && nextCh === '"') {
+                        cell[cell.length - 1] += '"';
+                        i++;
+                    } else {
+                        insideQuotes = !insideQuotes;
+                    }
+                } else if (ch === ',' && !insideQuotes) {
+                    cell.push('');
+                } else if (ch === '\n' && !insideQuotes) {
+                    lines.push(cell);
+                    cell = [''];
+                } else if (ch === '\r' && !insideQuotes) {
+                    // skip
+                } else {
+                    cell[cell.length - 1] += ch;
+                }
+            }
+
+            if (cell.length > 1 || cell[0] !== "") {
+                lines.push(cell);
+            }
+
+            if (lines.length < 2) {
+                showNotification("ไฟล์ชีตว่างเปล่าหรือไม่ถูกต้อง", "error");
+                return;
+            }
+
+            originalRows = lines;
+
+            // Find optimal header row automatically (Skipping blanks or report headers)
+            let bestHeadIdx = 0;
+            let bestMatches = 0;
+            const keywords = ['ช่องทาง', 'channel', 'ยอด', 'บาท', ' sales', 'ชิ้น', 'qty', 'วันที่', 'date', 'จำนวน', 'รวม'];
+
+            for (let r = 0; r < Math.min(12, lines.length); r++) {
+                let currentMatches = 0;
+                lines[r].forEach(colVal => {
+                    const lVal = String(colVal).toLowerCase();
+                    keywords.forEach(kw => {
+                        if (lVal.includes(kw)) currentMatches++;
+                    });
+                });
+                if (currentMatches > bestMatches) {
+                    bestMatches = currentMatches;
+                    bestHeadIdx = r;
+                }
+            }
+
+            detectedHeaders = lines[bestHeadIdx].map((h, i) => h.trim() || `คอลัมน์ที่ ${i + 1}`);
+
+            // Guess Columns automatically with trim and case-insensitivity to prevent mismatch
+            const cleanHeaders = detectedHeaders.map(h => h.trim().replace(/\s+/g, '').toLowerCase());
+
+            // Guess Channel
+            activeMappings.channel = cleanHeaders.findIndex(h => h.includes('ช่องทาง') || h.includes('channel'));
+
+            // Guess Sales (High priority on "รวม" to prevent mapping into "ชื่อ" or "ราคา" unit price)
+            let salesIdx = cleanHeaders.findIndex(h => h === 'รวม' || h === 'รวมเงิน' || h === 'สุทธิ' || h === 'total' || h === 'amount');
+            if (salesIdx === -1) {
+                salesIdx = cleanHeaders.findIndex(h => h.includes('รวม') || h.includes('ยอด') || h.includes('บาท') || h.includes('sales') || h.includes('revenue'));
+            }
+            if (salesIdx === -1) {
+                salesIdx = cleanHeaders.findIndex(h => h.includes('ราคา') || h.includes('price'));
+            }
+            activeMappings.sales = salesIdx;
+
+            // Guess Qty
+            activeMappings.qty = cleanHeaders.findIndex(h => h.includes('จำนวน') || h.includes('ชิ้น') || h.includes('qty') || h.includes('quantity') || h.includes('count'));
+
+            // Guess Date
+            activeMappings.date = cleanHeaders.findIndex(h => h.includes('วัน') || h.includes('date') || h.includes('time'));
+
+            // Set fallback if undefined
+            if (activeMappings.channel === -1) activeMappings.channel = 3;
+            if (activeMappings.sales === -1) activeMappings.sales = Math.min(8, detectedHeaders.length - 1);
+            if (activeMappings.qty === -1) activeMappings.qty = Math.min(7, detectedHeaders.length - 1);
+            if (activeMappings.date === -1) activeMappings.date = 0;
+
+            populateColumnDropdowns();
+            compileDataWithMapping(bestHeadIdx);
+        }
+
+        function populateColumnDropdowns() {
+            const keys = ['mapColChannel', 'mapColSales', 'mapColQty', 'mapColDate'];
+            keys.forEach(k => {
+                const el = document.getElementById(k);
+                el.innerHTML = '';
+                detectedHeaders.forEach((h, index) => {
+                    const opt = document.createElement('option');
+                    opt.value = index;
+                    opt.textContent = `${h} (คอลัมน์ [${index}])`;
+                    el.appendChild(opt);
+                });
+            });
+
+            document.getElementById('mapColChannel').value = activeMappings.channel;
+            document.getElementById('mapColSales').value = activeMappings.sales;
+            document.getElementById('mapColQty').value = activeMappings.qty;
+            document.getElementById('mapColDate').value = activeMappings.date;
+        }
+
+        function applyUserColumnMapping() {
+            activeMappings.channel = parseInt(document.getElementById('mapColChannel').value);
+            activeMappings.sales = parseInt(document.getElementById('mapColSales').value);
+            activeMappings.qty = parseInt(document.getElementById('mapColQty').value);
+            activeMappings.date = parseInt(document.getElementById('mapColDate').value);
+
+            let indexHead = originalRows.findIndex(row => row.includes(detectedHeaders[0]));
+            if (indexHead === -1) indexHead = 0;
+
+            compileDataWithMapping(indexHead);
+            showNotification("บันทึกสิทธิ์การจัดคอลัมน์ใหม่แล้ว!", "success");
+        }
+
+        function compileDataWithMapping(headerIdx) {
+            const formatted = [];
+
+            for (let i = headerIdx + 1; i < originalRows.length; i++) {
+                const row = originalRows[i];
+                if (row.length <= Math.max(activeMappings.channel, activeMappings.sales)) continue;
+
+                const rawChannel = String(row[activeMappings.channel] || '').trim();
+                if (!rawChannel || rawChannel.toLowerCase() === 'total' || rawChannel.includes('รวมทั้งสิ้น') || rawChannel === 'รวม') {
+                    continue; 
+                }
+
+                // Numbers sanitizing - strip commas and letters, preserve dots
+                const rawSalesStr = String(row[activeMappings.sales] || '0').replace(/[^0-9.-]/g, '');
+                const finalSales = parseFloat(rawSalesStr) || 0;
+
+                const rawQtyStr = String(row[activeMappings.qty] || '1').replace(/[^0-9]/g, '');
+                const finalQty = parseInt(rawQtyStr) || 1;
+
+                // Dates parsing with Thai Buddhist Year checking
+                const rawDate = String(row[activeMappings.date] || '').trim();
+                let cleanDateStr = '2026-01-01';
+
+                const parsedDate = tryParsingThaiDate(rawDate);
+                if (parsedDate) {
+                    cleanDateStr = parsedDate.toISOString().split('T')[0];
+                }
+
+                formatted.push({
+                    id: `row-${i}-${Date.now()}`,
+                    channel: rawChannel,
+                    sales: finalSales,
+                    units: finalQty,
+                    date: cleanDateStr
+                });
+            }
+
+            if (formatted.length === 0) {
+                showNotification("ไม่มีข้อมูลที่แมปได้สำเร็จในสเปรดชีตนี้ โปรดเช็คคอลัมน์ใหม่อีกครั้ง", "error");
+                return;
+            }
+
+            rawDataStore = formatted;
+            document.getElementById('syncIndicatorText').textContent = `ข้อมูลจาก Google Sheet (${formatted.length} รายการ)`;
+
+            refreshDropdownOptions();
+            triggerUpdateFilter();
+        }
+
+        function tryParsingThaiDate(dateString) {
+            if (!dateString) return null;
+            dateString = dateString.trim();
+
+            let std = new Date(dateString);
+            if (!isNaN(std.getTime())) {
+                if (std.getFullYear() > 2400) std.setFullYear(std.getFullYear() - 543);
+                return std;
+            }
+
+            // Parse DD/MM/YYYY or MM/DD/YYYY depending on layout
+            const parts = dateString.split(/[\/\-\.]/);
+            if (parts.length === 3) {
+                let d = parseInt(parts[0]);
+                let m = parseInt(parts[1]);
+                let y = parseInt(parts[2]);
+
+                if (parts[0].length === 4) {
+                    y = parseInt(parts[0]);
+                    m = parseInt(parts[1]);
+                    d = parseInt(parts[2]);
+                }
+
+                if (y > 2400) y -= 543; // Buddhist Era Adjustment
+
+                // Strict validation and local timezone formulation
+                const pDate = new Date(y, m - 1, d);
+                if (!isNaN(pDate.getTime())) return pDate;
+            }
+            return null;
+        }
+
+        // Offline Fallback for XLSX upload
+        function processLocalExcel(evt) {
+            const file = evt.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const dArray = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(dArray, {type: 'array'});
+                    const shName = workbook.SheetNames[0];
+                    const shContent = workbook.Sheets[shName];
+                    const csvData = XLSX.utils.sheet_to_csv(shContent);
+                    
+                    processSheetCSV(csvData);
+                    showNotification("วิเคราะห์ Excel สำเร็จ!", "success");
+                    toggleSettingsPanel();
+                } catch (err) {
+                    showNotification("ไม่สามารถประมวลผลไฟล์ Excel ได้", "error");
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function refreshDropdownOptions() {
+            const dropdown = document.getElementById('channelSelect');
+            const uniqueChannels = [...new Set(rawDataStore.map(x => x.channel))].sort();
+
+            const prevValue = dropdown.value;
+            dropdown.innerHTML = '<option value="all">ทุกช่องทาง</option>';
+
+            uniqueChannels.forEach(ch => {
+                const opt = document.createElement('option');
+                opt.value = ch;
+                opt.textContent = ch;
+                dropdown.appendChild(opt);
+            });
+
+            if (uniqueChannels.includes(prevValue)) {
+                dropdown.value = prevValue;
+            }
+        }
+
+        function triggerUpdateFilter() {
+            const filterStart = document.getElementById('startDate').value;
+            const filterEnd = document.getElementById('endDate').value;
+            const filterChannel = document.getElementById('channelSelect').value;
+
+            let dataSet = [...rawDataStore];
+
+            if (filterStart) {
+                const sDate = new Date(filterStart);
+                dataSet = dataSet.filter(x => new Date(x.date) >= sDate);
+            }
+            if (filterEnd) {
+                const eDate = new Date(filterEnd);
+                dataSet = dataSet.filter(x => new Date(x.date) <= eDate);
+            }
+            if (filterChannel && filterChannel !== 'all') {
+                dataSet = dataSet.filter(x => x.channel === filterChannel);
+                document.getElementById('kpiTotalSalesSub').textContent = filterChannel;
+            } else {
+                document.getElementById('kpiTotalSalesSub').textContent = 'ทุกช่องทาง';
+            }
+
+            // Sum elements
+            let totalSalesSum = 0;
+            let totalTxSum = dataSet.length;
+            let totalUnitsSum = 0;
+            const channelsMap = {};
+
+            dataSet.forEach(x => {
+                totalSalesSum += x.sales;
+                totalUnitsSum += x.units;
+                channelsMap[x.channel] = (channelsMap[x.channel] || 0) + x.sales;
+            });
+
+            const uniqueChannelsCount = Object.keys(channelsMap).length;
+
+            // Render KPIs
+            document.getElementById('kpiTotalSales').textContent = `฿${totalSalesSum.toLocaleString()}`;
+            document.getElementById('kpiTotalTx').textContent = totalTxSum.toLocaleString();
+            document.getElementById('kpiTotalUnits').textContent = totalUnitsSum.toLocaleString();
+            document.getElementById('kpiTotalChannels').textContent = uniqueChannelsCount.toLocaleString();
+
+            // Perform sorting of channels
+            const channelGroups = {};
+            dataSet.forEach(x => {
+                if (!channelGroups[x.channel]) {
+                    channelGroups[x.channel] = {
+                        channel: x.channel,
+                        sales: 0,
+                        units: 0,
+                        tx: 0
+                    };
+                }
+                channelGroups[x.channel].sales += x.sales;
+                channelGroups[x.channel].units += x.units;
+                channelGroups[x.channel].tx += 1;
+            });
+
+            const channelsArr = Object.values(channelGroups).sort((a, b) => b.sales - a.sales);
+            channelsArr.forEach(x => {
+                x.ratio = totalSalesSum > 0 ? (x.sales / totalSalesSum) * 100 : 0;
+            });
+
+            // Update visuals
+            renderBarChart(channelsArr);
+            renderDonutChart(channelsArr);
+            renderLineChart(dataSet, channelsArr);
+            renderBreakdownTable(channelsArr);
+            renderTop5Sidebar(channelsArr);
+        }
+
+        function resetFilters() {
+            document.getElementById('startDate').value = '2026-01-01';
+            document.getElementById('endDate').value = '2026-05-31';
+            document.getElementById('channelSelect').value = 'all';
+            triggerUpdateFilter();
+            showNotification("รีเซ็ตตัวกรองเรียบร้อยแล้ว", "info");
+        }
+
+        function renderBarChart(channelsArr) {
+            const ctx = document.getElementById('mainBarChart').getContext('2d');
+            
+            const labels = channelsArr.map(x => x.channel);
+            const data = channelsArr.map(x => x.sales);
+            const bgColors = labels.map((_, i) => sliceColors[i % sliceColors.length]);
+
+            if (barChartInstance) barChartInstance.destroy();
+
+            barChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors.map(c => c + 'dd'),
+                        borderColor: bgColors,
+                        borderWidth: 1.5,
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ยอดขาย: ฿${ctx.raw.toLocaleString()}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { family: 'Prompt', size: 9 }
+                            }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { family: 'Prompt', size: 9 },
+                                callback: val => '฿' + (val >= 1000 ? (val / 1000) + 'k' : val)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDonutChart(channelsArr) {
+            const ctx = document.getElementById('mainDonutChart').getContext('2d');
+            
+            const labels = channelsArr.map(x => `${x.channel} ${x.ratio.toFixed(0)}%`);
+            const data = channelsArr.map(x => x.sales);
+            const bgColors = channelsArr.map((_, i) => sliceColors[i % sliceColors.length]);
+
+            if (donutChartInstance) donutChartInstance.destroy();
+
+            donutChartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: bgColors,
+                        borderColor: '#171e31',
+                        borderWidth: 3,
+                        hoverOffset: 12
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: '#e2e8f0',
+                                font: { family: 'Prompt', size: 9.5 },
+                                boxWidth: 10,
+                                padding: 6
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ยอดรวม: ฿${ctx.raw.toLocaleString()}`
+                            }
+                        }
+                    },
+                    cutout: '68%'
+                }
+            });
+        }
+
+        function renderLineChart(dataSet, channelsArr) {
+            const ctx = document.getElementById('trendLineChart').getContext('2d');
+            
+            // Get Top 5 Channels for Line Display
+            const top5Channels = channelsArr.slice(0, 5).map(x => x.channel);
+            const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.'];
+
+            // Matrix values
+            const linesData = {};
+            top5Channels.forEach(ch => {
+                linesData[ch] = [0, 0, 0, 0, 0]; // representing 5 months
+            });
+
+            dataSet.forEach(x => {
+                if (!x.date) return;
+                const mIdx = new Date(x.date).getMonth(); // Jan=0, Feb=1...
+                if (mIdx >= 0 && mIdx < 5) {
+                    if (linesData[x.channel]) {
+                        linesData[x.channel][mIdx] += x.sales;
+                    }
+                }
+            });
+
+            const datasets = top5Channels.map((ch, idx) => {
+                const color = sliceColors[idx % sliceColors.length];
+                return {
+                    label: ch,
+                    data: linesData[ch],
+                    borderColor: color,
+                    backgroundColor: color + '15',
+                    borderWidth: 2.5,
+                    tension: 0.4,
+                    pointRadius: 4.5,
+                    pointHoverRadius: 7,
+                    fill: false
+                };
+            });
+
+            if (lineChartInstance) lineChartInstance.destroy();
+
+            lineChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: '#94a3b8',
+                                font: { family: 'Prompt', size: 9.5 },
+                                boxWidth: 12,
+                                padding: 12
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => ` ${ctx.dataset.label}: ฿${ctx.raw.toLocaleString()}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                            ticks: { color: '#94a3b8', font: { family: 'Prompt', size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.04)' },
+                            ticks: {
+                                color: '#94a3b8',
+                                font: { family: 'Prompt', size: 10 },
+                                callback: val => '฿' + (val >= 1000 ? (val / 1000) + 'k' : val)
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderBreakdownTable(channelsArr) {
+            const tbody = document.getElementById('detailedTableBody');
+            tbody.innerHTML = '';
+
+            document.getElementById('tableRecordCount').textContent = `รวมทั้งสิ้น ${channelsArr.length} ช่องทางการจำหน่าย`;
+
+            channelsArr.forEach((x, index) => {
+                const color = sliceColors[index % sliceColors.length];
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-900/50 transition-colors";
+
+                tr.innerHTML = `
+                    <td class="py-3 px-5 font-semibold text-slate-200 flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full inline-block" style="background-color: ${color}"></span>
+                        ${x.channel}
+                    </td>
+                    <td class="py-3 px-5 text-right font-mono font-bold text-white">฿${x.sales.toLocaleString()}</td>
+                    <td class="py-3 px-5 text-right font-mono">${x.units.toLocaleString()}</td>
+                    <td class="py-3 px-5">
+                        <div class="flex items-center gap-3">
+                            <div class="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden max-w-[120px]">
+                                <div class="h-full rounded-full" style="background-color: ${color}; width: ${x.ratio}%"></div>
+                            </div>
+                            <span class="text-[10px] text-slate-400 font-bold">${x.ratio.toFixed(1)}%</span>
+                        </div>
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderTop5Sidebar(channelsArr) {
+            const container = document.getElementById('top5Container');
+            container.innerHTML = '';
+
+            const top5 = channelsArr.slice(0, 5);
+            top5.forEach((x, index) => {
+                const color = sliceColors[index % sliceColors.length];
+                const card = document.createElement('div');
+                card.className = "flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-slate-800/40 hover:border-slate-800 transition-all";
+
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-extrabold w-5 h-5 flex items-center justify-center rounded-full text-slate-400" style="background-color: ${color + '15'}; color: ${color}">
+                            ${index + 1}
+                        </span>
+                        <span class="text-xs font-semibold text-slate-200">${x.channel}</span>
+                    </div>
+                    <span class="text-xs font-mono font-bold text-white">฿${x.sales.toLocaleString()}</span>
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        function downloadCSVReport() {
+            let csvStr = "\ufeffช่องทาง,ยอดขายรวม(บาท),จำนวนรายการบิล,จำนวนชิ้น,สัดส่วน(%)\n";
+            rawDataStore.forEach(x => {
+                csvStr += `"${x.channel}",${x.sales},1,${x.units},"${x.date}"\n`;
+            });
+
+            const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.setAttribute('href', url);
+            anchor.setAttribute('download', 'QLP_Sales_Data_Report.csv');
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+        }
+
+        function toggleAutoSync() {
+            isAutoSyncEnabled = document.getElementById('autoSyncToggle').checked;
+            if (isAutoSyncEnabled) {
+                resetCountdown();
+                showNotification("เปิดระบบอัปเดตออโต้แล้ว (ทุก 10 วินาที)", "info");
+            } else {
+                clearInterval(countdownInterval);
+                clearTimeout(autoSyncTimer);
+                document.getElementById('countdownProgress').setAttribute('stroke-dasharray', '100, 100');
+                document.getElementById('countdownText').textContent = 'OFF';
+                showNotification("ปิดระบบอัปเดตออโต้แล้ว", "info");
+            }
+        }
+
+        function resetCountdown() {
+            clearInterval(countdownInterval);
+            clearTimeout(autoSyncTimer);
+            if (!isAutoSyncEnabled) return;
+
+            countdownSeconds = 10;
+            document.getElementById('countdownText').textContent = countdownSeconds;
+            document.getElementById('countdownProgress').setAttribute('stroke-dasharray', '100, 100');
+
+            countdownInterval = setInterval(() => {
+                countdownSeconds--;
+                if (countdownSeconds < 0) countdownSeconds = 0;
+                
+                document.getElementById('countdownText').textContent = countdownSeconds;
+                const dash = (countdownSeconds / 10) * 100;
+                document.getElementById('countdownProgress').setAttribute('stroke-dasharray', `${dash}, 100`);
+            }, 1000);
+
+            autoSyncTimer = setTimeout(() => {
+                syncWithGoogleSheet();
+            }, 10000);
+        }
+
+        // Initial setup on screen load
+        window.onload = function() {
+            // Set initial dates range 2026-01-01 to 2026-05-31
+            document.getElementById('startDate').value = '2026-01-01';
+            document.getElementById('endDate').value = '2026-05-31';
+            
+            // Try fetching from spreadsheet link immediately
+            syncWithGoogleSheet();
+        }
+    </script>
+</body>
+</html>
